@@ -1,0 +1,98 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>VK Постер — Фильтрация предложки</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+    button { margin: 5px; padding: 10px; }
+    .log { white-space: pre-line; font-family: monospace; background: #fff; padding: 10px; border: 1px solid #ccc; }
+    .post-item { border: 1px solid #ccc; background: #fff; margin-top: 10px; padding: 10px; }
+    .bad { background-color: #ffe6e6; }
+  </style>
+</head>
+<body>
+  <h2>VK Постер — Фильтрация предложки</h2>
+  <button onclick="loadPosts()">Загрузить предложку</button>
+  <button onclick="checkPosts()">Проверить посты</button>
+  <button onclick="deleteSelected()">Удалить выделенное</button>
+  <button onclick="publishApproved()">Выложить подходящие</button>
+  <div id="log" class="log">[Готов к работе]</div>
+  <div id="posts"></div>
+
+  <script>
+    const proxy = "https://vk-proxy-dtc1.onrender.com";
+    let posts = [];
+
+    function log(text) {
+      const logDiv = document.getElementById("log");
+      logDiv.textContent += "\n" + text;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    async function loadPosts() {
+      log("Загружаем предложку...");
+      const res = await fetch(proxy + "/get_posts");
+      const data = await res.json();
+      posts = data.response.items;
+      document.getElementById("posts").innerHTML = "";
+      log("Получено постов: " + posts.length);
+      for (let post of posts) {
+        const div = document.createElement("div");
+        div.className = "post-item";
+        div.innerHTML = `<input type="checkbox" data-id="${post.id}" />
+                         <b>ID:</b> ${post.id}<br>
+                         <pre>${post.text}</pre>`;
+        document.getElementById("posts").appendChild(div);
+      }
+    }
+
+    function checkPosts() {
+      let good = 0, bad = 0;
+      for (let div of document.querySelectorAll(".post-item")) {
+        const text = div.innerText;
+        if (text.includes("+7") || text.includes("8") || text.match(/\d{10,}/)) {
+          good++;
+          div.classList.remove("bad");
+        } else {
+          bad++;
+          div.classList.add("bad");
+        }
+      }
+      log("Подходящих постов: " + good);
+    }
+
+    async function publishApproved() {
+      for (let div of document.querySelectorAll(".post-item:not(.bad)")) {
+        const id = div.querySelector("input").dataset.id;
+        log("Публикуем пост " + id + "...");
+        const res = await fetch(proxy + "/post?id=" + id);
+        const data = await res.json();
+        if (data.response) {
+          log("Опубликован пост " + id + " — " + data.response.post_id);
+        }
+      }
+    }
+
+    async function deleteSelected() {
+      for (let checkbox of document.querySelectorAll("input[type=checkbox]:checked")) {
+        const id = checkbox.dataset.id;
+        log("Удаляем пост " + id + "...");
+        try {
+          const res = await fetch(proxy + "/delete?id=" + id);
+          const data = await res.json();
+          if (data.response) {
+            log("Удалено: " + id);
+            checkbox.closest(".post-item").remove();
+          } else {
+            log("Ошибка удаления: " + JSON.stringify(data));
+          }
+        } catch (e) {
+          log("Ошибка при удалении: " + e.message);
+        }
+      }
+    }
+  </script>
+</body>
+</html>
